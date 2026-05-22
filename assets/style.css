@@ -18,6 +18,10 @@ h1 {
     margin-top: 0;
 }
 
+h2 {
+    margin-top: 0;
+}
+
 .success {
     color: #1f7a3f;
     font-weight: bold;
@@ -33,6 +37,8 @@ h1 {
     text-decoration: none;
     border-radius: 14px;
     font-size: 18px;
+    border: 0;
+    cursor: pointer;
 }
 
 .cards {
@@ -67,4 +73,134 @@ h1 {
 
 .menu a {
     text-align: center;
+}
+
+.back-link {
+    display: inline-block;
+    margin-bottom: 18px;
+    color: #2f2a25;
+    text-decoration: none;
+    font-weight: bold;
+}
+
+.stock-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 24px;
+    overflow: hidden;
+    border-radius: 14px;
+}
+
+.stock-table th,
+.stock-table td {
+    padding: 16px;
+    text-align: left;
+    border-bottom: 1px solid #eee;
+}
+
+.stock-table th {
+    background: #f7f3ed;
+    font-size: 14px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.status {
+    display: inline-block;
+    padding: 8px 12px;
+    border-radius: 999px;
+    font-weight: bold;
+    font-size: 14px;
+}
+
+.status-green {
+    background: #e5f5ea;
+    color: #1f7a3f;
+}
+
+.status-orange {
+    background: #fff3d8;
+    color: #9a6500;
+}
+
+.status-red {
+    background: #fde5e5;
+    color: #a52828;
+}
+
+.panel {
+    margin-top: 28px;
+    padding: 24px;
+    background: #fbf8f3;
+    border-radius: 18px;
+}
+
+.form-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 18px;
+}
+
+.form-grid label {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    font-weight: bold;
+}
+
+.form-grid input,
+.form-grid select {
+    padding: 14px;
+    border: 1px solid #ddd;
+    border-radius: 12px;
+    font-size: 16px;
+    background: #fff;
+}
+
+.form-button {
+    align-self: end;
+    width: 100%;
+}
+
+.alert {
+    padding: 16px 18px;
+    border-radius: 14px;
+    margin: 18px 0;
+    font-weight: bold;
+}
+
+.alert p {
+    margin: 0 0 6px 0;
+}
+
+.alert p:last-child {
+    margin-bottom: 0;
+}
+
+.alert-success {
+    background: #e5f5ea;
+    color: #1f7a3f;
+}
+
+.alert-error {
+    background: #fde5e5;
+    color: #a52828;
+}
+
+@media (max-width: 768px) {
+    .container {
+        margin: 16px;
+        padding: 20px;
+    }
+
+    .stock-table {
+        display: block;
+        overflow-x: auto;
+        white-space: nowrap;
+    }
+
+    .stock-table th,
+    .stock-table td {
+        padding: 14px;
+    }
 }
