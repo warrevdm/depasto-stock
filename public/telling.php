@@ -5,6 +5,30 @@ $errors = [];
 $success = null;
 $selectedCategory = $_GET['category'] ?? ($_POST['category'] ?? '');
 
+function parseDecimalValue($value): ?float
+{
+    $value = str_replace(',', '.', trim((string) $value));
+
+    if ($value === '') {
+        return null;
+    }
+
+    return (float) $value;
+}
+
+function formatStockWithPackaging(float $stock, float $packSize, string $unit): string
+{
+    if ($packSize > 1) {
+        $fullPacks = floor($stock / $packSize);
+        $looseUnits = $stock - ($fullPacks * $packSize);
+
+        return number_format($fullPacks, 0, ',', '.') . ' verp. + ' .
+            number_format($looseUnits, 2, ',', '.') . ' ' . $unit;
+    }
+
+    return number_format($stock, 2, ',', '.') . ' ' . $unit;
+}
+
 $categoriesStmt = $pdo->query("
     SELECT DISTINCT category
     FROM products
@@ -18,8 +42,11 @@ $categories = $categoriesStmt->fetchAll();
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $movementDate = $_POST['movement_date'] ?? date('Y-m-d');
     $reference = trim($_POST['reference'] ?? 'Stocktelling');
-    $counts = $_POST['counts'] ?? [];
+    $packCounts = $_POST['pack_counts'] ?? [];
+    $looseCounts = $_POST['loose_counts'] ?? [];
+    $directCounts = $_POST['direct_counts'] ?? [];
     $expectedStocks = $_POST['expected_stock'] ?? [];
+    $packSizes = $_POST['pack_size'] ?? [];
 
     if (!$movementDate) {
         $errors[] = 'Kies een datum.';
@@ -27,16 +54,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     $corrections = [];
 
-    foreach ($counts as $productId => $countValue) {
+    foreach ($expectedStocks as $productId => $expectedStockValue) {
         $productId = (int) $productId;
-        $countValue = str_replace(',', '.', trim((string) $countValue));
+        $expectedStock = (float) $expectedStockValue;
+        $packSize = isset($packSizes[$productId]) ? (float) $packSizes[$productId] : 1;
+        $packSize = $packSize > 0 ? $packSize : 1;
 
-        if ($countValue === '') {
-            continue;
+        if ($packSize > 1) {
+            $packCount = parseDecimalValue($packCounts[$productId] ?? '');
+            $looseCount = parseDecimalValue($looseCounts[$productId] ?? '');
+
+            if ($packCount === null && $looseCount === null) {
+                continue;
+            }
+
+            $countedStock = (($packCount ?? 0) * $packSize) + ($looseCount ?? 0);
+        } else {
+            $directCount = parseDecimalValue($directCounts[$productId] ?? '');
+
+            if ($directCount === null) {
+                continue;
+            }
+
+            $countedStock = $directCount;
         }
 
-        $countedStock = (float) $countValue;
-        $expectedStock = isset($expectedStocks[$productId]) ? (float) $expectedStocks[$productId] : 0;
         $difference = $countedStock - $expectedStock;
 
         if (abs($difference) > 0.0001) {
@@ -86,6 +128,7 @@ $sql = "
         p.name,
         p.category,
         p.unit,
+        p.pack_size,
         p.min_stock,
         p.target_stock,
         COALESCE(SUM(sm.quantity), 0) AS current_stock
@@ -102,7 +145,7 @@ if ($selectedCategory !== '') {
 }
 
 $sql .= "
-    GROUP BY p.id, p.name, p.category, p.unit, p.min_stock, p.target_stock
+    GROUP BY p.id, p.name, p.category, p.unit, p.pack_size, p.min_stock, p.target_stock
     ORDER BY p.category, p.name
 ";
 
@@ -123,6 +166,7 @@ $products = $productsStmt->fetchAll();
         <a class="back-link" href="dashboard.php">← Terug naar dashboard</a>
 
         <h1>Stocktelling</h1>
+        <p class="muted">Tel producten met een verpakkingsgrootte per volle bak/doos/verpakking en losse stuks. Voorbeeld: Duvel met verpakkingsgrootte 24 → 1 volle bak + 5 losse stuks = 29 stuks.</p>
 
         <?php if ($success): ?>
             <div class="alert alert-success"><?= htmlspecialchars($success) ?></div>
@@ -177,36 +221,72 @@ $products = $productsStmt->fetchAll();
                         </label>
                     </div>
 
-                    <table class="stock-table">
+                    <table class="stock-table count-table">
                         <thead>
                             <tr>
                                 <th>Product</th>
                                 <th>Categorie</th>
                                 <th>Verwacht</th>
-                                <th>Geteld</th>
+                                <th>Volle verpakkingen</th>
+                                <th>Losse stuks</th>
                                 <th>Eenheid</th>
                             </tr>
                         </thead>
                         <tbody>
                             <?php foreach ($products as $product): ?>
-                                <?php $currentStock = (float) $product['current_stock']; ?>
+                                <?php
+                                    $currentStock = (float) $product['current_stock'];
+                                    $packSize = (float) $product['pack_size'];
+                                    $packSize = $packSize > 0 ? $packSize : 1;
+                                ?>
                                 <tr>
-                                    <td><?= htmlspecialchars($product['name']) ?></td>
+                                    <td>
+                                        <strong><?= htmlspecialchars($product['name']) ?></strong>
+                                        <?php if ($packSize > 1): ?>
+                                            <span class="small-note">1 verpakking = <?= htmlspecialchars(number_format($packSize, 0, ',', '.')) ?> <?= htmlspecialchars($product['unit']) ?></span>
+                                        <?php endif; ?>
+                                    </td>
                                     <td><?= htmlspecialchars($product['category']) ?></td>
                                     <td>
-                                        <?= htmlspecialchars(number_format($currentStock, 2, ',', '.')) ?>
+                                        <?= htmlspecialchars(formatStockWithPackaging($currentStock, $packSize, $product['unit'])) ?>
                                         <input type="hidden" name="expected_stock[<?= htmlspecialchars($product['id']) ?>]" value="<?= htmlspecialchars((string) $currentStock) ?>">
+                                        <input type="hidden" name="pack_size[<?= htmlspecialchars($product['id']) ?>]" value="<?= htmlspecialchars((string) $packSize) ?>">
                                     </td>
-                                    <td>
-                                        <input
-                                            type="number"
-                                            step="0.01"
-                                            min="0"
-                                            name="counts[<?= htmlspecialchars($product['id']) ?>]"
-                                            placeholder="Geteld"
-                                            class="count-input"
-                                        >
-                                    </td>
+
+                                    <?php if ($packSize > 1): ?>
+                                        <td>
+                                            <input
+                                                type="number"
+                                                step="1"
+                                                min="0"
+                                                name="pack_counts[<?= htmlspecialchars($product['id']) ?>]"
+                                                placeholder="0"
+                                                class="count-input"
+                                            >
+                                        </td>
+                                        <td>
+                                            <input
+                                                type="number"
+                                                step="0.01"
+                                                min="0"
+                                                name="loose_counts[<?= htmlspecialchars($product['id']) ?>]"
+                                                placeholder="0"
+                                                class="count-input"
+                                            >
+                                        </td>
+                                    <?php else: ?>
+                                        <td colspan="2">
+                                            <input
+                                                type="number"
+                                                step="0.01"
+                                                min="0"
+                                                name="direct_counts[<?= htmlspecialchars($product['id']) ?>]"
+                                                placeholder="Geteld totaal"
+                                                class="count-input"
+                                            >
+                                        </td>
+                                    <?php endif; ?>
+
                                     <td><?= htmlspecialchars($product['unit']) ?></td>
                                 </tr>
                             <?php endforeach; ?>
